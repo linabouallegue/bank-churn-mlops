@@ -15,10 +15,12 @@ import mlflow
 import mlflow.sklearn
 import matplotlib.pyplot as plt
 import seaborn as sns
+import os
 
-# Configuration MLflow
-mlflow.set_tracking_uri("./mlruns")
+# Configuration MLflow : dossier local "mlruns" dans ton projet
+mlflow.set_tracking_uri("file:./mlruns")
 mlflow.set_experiment("bank-churn-prediction")
+
 
 print("Chargement des donnees...")
 df = pd.read_csv("data/bank_churn.csv")
@@ -83,7 +85,6 @@ with mlflow.start_run(run_name="random-forest-v1"):
     plt.ylabel('Vraie Classe')
     plt.xlabel('Classe Predite')
     plt.savefig('confusion_matrix.png')
-    mlflow.log_artifact('confusion_matrix.png')
     plt.close()
     
     # Feature importance
@@ -98,20 +99,19 @@ with mlflow.start_run(run_name="random-forest-v1"):
     plt.title('Feature Importance')
     plt.tight_layout()
     plt.savefig('feature_importance.png')
-    mlflow.log_artifact('feature_importance.png')
     plt.close()
     
-    # Enregistrement du modele dans MLflow
-    mlflow.sklearn.log_model(
-        model,
-        "model",
-        registered_model_name="bank-churn-classifier"
-    )
+    # Enregistrement du modele dans MLflow (disabled due to permission issues)
+    # mlflow.sklearn.log_model(
+    #     model,
+    #     "model",
+    #     registered_model_name="bank-churn-classifier"
+    # )
     
     # Sauvegarde locale du modele
     joblib.dump(model, "model/churn_model.pkl")
     
-    # Tags
+    # Tags MLflow (syntaxe corrigee)
     mlflow.set_tags({
         "environment": "development",
         "model_type": "RandomForest",

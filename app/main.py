@@ -1,12 +1,21 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
+from datetime import datetime
+import time
+import logging
+import os
 import joblib
 import numpy as np
 from typing import List
-import logging
-import os
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from app.models import CustomerFeatures, PredictionResponse
 
-from app.models import CustomerFeatures, PredictionResponse, HealthResponse
+# Statistiques de monitoring
+prediction_stats = {
+    "total_predictions": 0,
+    "total_batch_predictions": 0,
+    "start_time": datetime.now(),
+    "last_prediction": None
+}
 
 # Configuration du logging
 logging.basicConfig(level=logging.INFO)
@@ -55,17 +64,26 @@ def root():
         "docs": "/docs"
     }
 
-@app.get("/health", response_model=HealthResponse, tags=["General"])
-def health_check():
-    """Verification de l'etat de l'API"""
-    if model is None:
-        raise HTTPException(
-            status_code=503, 
-            detail="Modele non charge"
-        )
+@app.get("/health", tags=["General"])
+def health():
+    """Health check endpoint"""
     return {
         "status": "healthy",
-        "model_loaded": True
+        "model_loaded": model is not None,
+        "timestamp": datetime.now().isoformat()
+    }
+
+@app.get("/stats", tags=["Monitoring"])
+def get_stats():
+    """Statistiques d'utilisation de l'API"""
+    uptime = datetime.now() - prediction_stats["start_time"]
+    
+    return {
+        "uptime_seconds": uptime.total_seconds(),
+        "total_predictions": prediction_stats["total_predictions"],
+        "total_batch_predictions": prediction_stats["total_batch_predictions"],
+        "last_prediction": prediction_stats["last_prediction"],
+        "model_loaded": model is not None
     }
 
 @app.post("/predict", response_model=PredictionResponse, tags=["Prediction"])
@@ -116,6 +134,10 @@ def predict(features: CustomerFeatures):
             f"prediction={prediction}, risk={risk}"
         )
         
+        # Mise a jour des stats
+        prediction_stats["total_predictions"] += 1
+        prediction_stats["last_prediction"] = datetime.now().isoformat()
+        
         return {
             "churn_probability": round(float(proba), 4),
             "prediction": prediction,
@@ -157,6 +179,10 @@ def predict_batch(features_list: List[CustomerFeatures]):
             })
         
         logger.info(f"Batch prediction : {len(predictions)} clients traites")
+        
+        # Mise a jour des stats
+        prediction_stats["total_batch_predictions"] += len(predictions)
+        prediction_stats["last_prediction"] = datetime.now().isoformat()
         
         return {"predictions": predictions, "count": len(predictions)}
     
