@@ -14,8 +14,8 @@ class CustomerFeatures(BaseModel):
     Geography_Germany: int = Field(..., ge=0, le=1, description="Client allemand")
     Geography_Spain: int = Field(..., ge=0, le=1, description="Client espagnol")
     
-    class Config:
-        schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "CreditScore": 650,
                 "Age": 35,
@@ -29,6 +29,7 @@ class CustomerFeatures(BaseModel):
                 "Geography_Spain": 1
             }
         }
+    }
 
 class PredictionResponse(BaseModel):
     """Schema pour la reponse de prediction"""

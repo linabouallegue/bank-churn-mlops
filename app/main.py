@@ -5,8 +5,10 @@ import os
 import joblib
 import numpy as np
 from typing import List
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 from app.models import CustomerFeatures, PredictionResponse
 
 # Statistiques de monitoring
@@ -22,12 +24,27 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Initialisation FastAPI
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Charge le modele au demarrage de l'API et nettoie a la fermeture"""
+    global model
+    try:
+        model = joblib.load(MODEL_PATH)
+        logger.info(f"Modele charge avec succes depuis {MODEL_PATH}")
+    except Exception as e:
+        logger.error(f"Erreur lors du chargement du modele : {e}")
+        model = None
+    yield
+    # Nettoyage si necessaire
+    logger.info("Arret de l'API")
+
 app = FastAPI(
     title="Bank Churn Prediction API",
     description="API de prediction de defaillance client",
     version="1.0.0",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    lifespan=lifespan
 )
 
 # CORS pour permettre les requetes depuis un navigateur
@@ -43,16 +60,6 @@ app.add_middleware(
 MODEL_PATH = os.getenv("MODEL_PATH", "model/churn_model.pkl")
 model = None
 
-@app.on_event("startup")
-async def load_model():
-    """Charge le modele au demarrage de l'API"""
-    global model
-    try:
-        model = joblib.load(MODEL_PATH)
-        logger.info(f"Modele charge avec succes depuis {MODEL_PATH}")
-    except Exception as e:
-        logger.error(f"Erreur lors du chargement du modele : {e}")
-        model = None
 
 @app.get("/", tags=["General"])
 def root():
