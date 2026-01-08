@@ -2,6 +2,9 @@ from datetime import datetime
 import time
 import logging
 import os
+import hashlib
+import json
+from functools import lru_cache
 import joblib
 import numpy as np
 from typing import List
@@ -93,70 +96,56 @@ def get_stats():
         "model_loaded": model is not None
     }
 
+def hash_features(features_dict: dict) -> str:
+    """Cree un hash unique pour les features"""
+    return hashlib.md5(
+        json.dumps(features_dict, sort_keys=True).encode()
+    ).hexdigest()
+
+# Cache pour les predictions (1000 dernieres)
+@lru_cache(maxsize=1000)
+def predict_cached(features_hash: str, features_json: str):
+    features_dict = json.loads(features_json)
+    input_data = np.array([[
+        features_dict["CreditScore"],
+        features_dict["Age"],
+        features_dict["Tenure"],
+        features_dict["Balance"],
+        features_dict["NumOfProducts"],
+        features_dict["HasCrCard"],
+        features_dict["IsActiveMember"],
+        features_dict["EstimatedSalary"],
+        features_dict["Geography_Germany"],
+        features_dict["Geography_Spain"]
+    ]])
+    
+    proba = model.predict_proba(input_data)[0, 1]
+    prediction = int(proba > 0.5)
+    
+    if proba < 0.3:
+        risk = "Low"
+    elif proba < 0.7:
+        risk = "Medium"
+    else:
+        risk = "High"
+    
+    return {
+        "churn_probability": round(float(proba), 4),
+        "prediction": prediction,
+        "risk_level": risk
+    }
+
 @app.post("/predict", response_model=PredictionResponse, tags=["Prediction"])
 def predict(features: CustomerFeatures):
-    """
-    Predit si un client va partir (churn)
+    features_dict = features.dict()
+    features_hash = hash_features(features_dict)
+    features_json = json.dumps(features_dict)
     
-    Retourne :
-    - churn_probability : probabilite de churn (0 a 1)
-    - prediction : 0 (reste) ou 1 (part)
-    - risk_level : Low, Medium ou High
-    """
-    if model is None:
-        raise HTTPException(
-            status_code=503, 
-            detail="Modele non disponible"
-        )
+    # Utilise le cache si disponible
+    result = predict_cached(features_hash, features_json)
     
-    try:
-        # Preparation des features
-        input_data = np.array([[
-            features.CreditScore,
-            features.Age,
-            features.Tenure,
-            features.Balance,
-            features.NumOfProducts,
-            features.HasCrCard,
-            features.IsActiveMember,
-            features.EstimatedSalary,
-            features.Geography_Germany,
-            features.Geography_Spain
-        ]])
-        
-        # Prediction
-        proba = model.predict_proba(input_data)[0, 1]
-        prediction = int(proba > 0.5)
-        
-        # Classification du risque
-        if proba < 0.3:
-            risk = "Low"
-        elif proba < 0.7:
-            risk = "Medium"
-        else:
-            risk = "High"
-        
-        logger.info(
-            f"Prediction effectuee : proba={proba:.4f}, "
-            f"prediction={prediction}, risk={risk}"
-        )
-        
-        # Mise a jour des stats
-        prediction_stats["total_predictions"] += 1
-        prediction_stats["last_prediction"] = datetime.now().isoformat()
-        
-        return {
-            "churn_probability": round(float(proba), 4),
-            "prediction": prediction,
-            "risk_level": risk
-        }
-    
-    except Exception as e:
-        logger.error(f"Erreur lors de la prediction : {e}")
-        raise HTTPException(
-            status_code=500, 
-            detail=f"Erreur de prediction : {str(e)}"
-        )
+    logger.info(f"Prediction - Hash: {features_hash[:8]}")
+    return result
 
 @app.post("/predict/batch", tags=["Prediction"])
 def predict_batch(features_list: List[CustomerFeatures]):
