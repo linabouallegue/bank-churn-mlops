@@ -21,5 +21,5 @@ httpx>=0.25
 python-multipart>=0.0.6
 requests>=2.31
 
-opencensus-ext-azure==1.1.9
-opencensus-ext-requests==0.12.1
+opencensus-ext-azure
+opencensus-ext-requests
