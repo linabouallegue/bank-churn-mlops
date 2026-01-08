@@ -20,7 +20,7 @@ st.set_page_config(
 )
 
 # Configuration API
-API_BASE_URL = "https://bank-churn-mlops-ftx6sqc5dveyrzponyudod.streamlit.app/"
+API_BASE_URL = "https://bank-churn.redflower-49f77806.francecentral.azurecontainerapps.io"
 
 # Fonctions utilitaires
 def call_api(endpoint, data=None):
